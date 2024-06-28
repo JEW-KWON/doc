@@ -1,6 +1,7 @@
 ```java
 /**
  * 비밀번호 확인 요청
+ * Controller가 모든 비즈니스 로직을 처리하고 있음
  */
 @RestController
 @RequiredArgsConstructor
@@ -45,6 +46,64 @@ public class PasswordCheckController {
         }
     }
 }
+
+/**
+ * 비밀번호 확인 요청
+ * Presentation Layer
+ * Validation을 사용하여 비밀번호를 입력 학인 로직을 분리
+ */
+
+@RestController
+@RequiredArgsConstructor
+public class PasswordCheckController {
+
+    private final PasswordEncoder passwordEncoder;
+
+    @PostMapping("/confirm-password")
+    @ResponseBody
+    public ResponseEntity<?> confirmPassword(@Valid @RequestBody PasswordCheckRequest request) {
+        // 로그인한 사용자 정보를 가져온다.
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        UserDetailsImpl userDetails = SecurityHelpers.extractUserDetailsImpl(principal);
+        User user = userDetails.user();
+
+        // 입력한 비밀번호와 사용자의 비밀번호가 일치하는지 확인한다.
+        boolean bool = passwordEncoder.matches(request.getPassword(), user.getPassword());
+
+        // 비밀번호가 일치하지 않을 경우
+        if (!bool) {
+            return ResponseEntity.badRequest().body("비밀번호가 일치하지 않습니다 다시 확인하세요");
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+        return ResponseEntity.badRequest().body(errors);
+    }
+
+    // 비밀번호 확인 요청 DTO
+    public static class PasswordCheckRequest {
+        @NotEmpty(message = "비밀번호를 입력하세요")
+        private String password;
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+    }
+}
+
 
 /**
  * 비밀번호 확인 요청
